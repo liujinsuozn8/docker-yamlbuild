@@ -1,0 +1,8 @@
+- id: test-img
+  build-arg:
+    KAFKA_VERSION: 123
+    bbb: 234
+- id: test-img2
+  build-arg:
+    KAFKA_VERSION: 456
+    bbb: 678
