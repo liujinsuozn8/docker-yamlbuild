@@ -1,6 +1,8 @@
 # docker-yamlbuild
-- 通过yaml文件编译docker镜像
-- 编译指令，并生成可执行文件`docker-yamlbuild`
+- 基于yaml文件批量编译docker镜像
+
+## 编译指令
+- 编译，并生成可执行文件 `docker-yamlbuild`
     ```sh
     go build
     ```
@@ -11,6 +13,7 @@
 # 读取 ./test/test.yml 文件内的编译参数
 # 从 test/img/ 中获取 Dockerfile 等编译所需的内容
 # test/resource 保存编译时所需要的安装包，并在该路径下执行编译（编译前，会从 test/img/ 下进行拷贝） 
+
 ./docker-yamlbuild -y ./test/test.yml --img-dir test/img/ --build-dir test/resource
 ```
 
@@ -90,3 +93,6 @@
 4. 根据 `COPY`、`ADD` 创建 `.dockerignore` 文件，防止 `--build-dir` 路径下资源过多导致的编译速度下降
 5. 当 `--build-dir` 路径下的资源准备完成之后，执行编译
 6. 编译结束后，会将拷贝的资源删掉，包括：`Dockerfile` 、`src/`、`.dockerignore`
+
+## 注意事项
+- 无法解析 `ENV` 中包含多个 `KEY=VALUE` 形式的Step，可能会造成解析失败

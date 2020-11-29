@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	CMD_ENV  = "ENV"
-	CMD_ARG  = "ARG"
-	CMD_COPY = "COPY"
-	CMD_ADD  = "ADD"
+	STEP_ENV  = "ENV"
+	STEP_ARG  = "ARG"
+	STEP_COPY = "COPY"
+	STEP_ADD  = "ADD"
+	STEP_COMMENT  = "COMMENT"
 )
 
 type Dockerfile struct {
@@ -31,11 +32,11 @@ type DFStep struct {
 	RowNos     []int
 }
 
-func CreateDockerfile(path string, buildArgs map[string]string) (*Dockerfile, error) {
+func CreateDockerfile(path string, opts *ImageBuildOptions) (*Dockerfile, error) {
 	df := Dockerfile{
 		Path:               path,
 		Envs:               make(map[string]string),
-		ArgMap:             buildArgs,
+		ArgMap:             opts.BuildArgs,
 		ArgKeys:            []string{},
 		DFSteps:            []*DFStep{},
 		LocalResourcePaths: []string{},
@@ -57,7 +58,7 @@ func CreateDockerfile(path string, buildArgs map[string]string) (*Dockerfile, er
 	rowNo := 0
 	for s.Scan() {
 		rowNo = rowNo + 1
-		err := analyzeStep(&df, rowNo, s.Text())
+		err := analyzeStep(&df, opts, rowNo, s.Text())
 		if err != nil {
 			return nil, err
 		}
@@ -71,12 +72,18 @@ func CreateDockerfile(path string, buildArgs map[string]string) (*Dockerfile, er
 	return &df, err
 }
 
-func analyzeStep(df *Dockerfile, rowNo int, text string) error {
+func analyzeStep(df *Dockerfile, opts *ImageBuildOptions, rowNo int, text string) error {
+	if IsComment(text) {
+		dfStep := parseCommentStep(rowNo,text)
+		df.DFSteps = append(df.DFSteps, dfStep)
+		return nil
+	}
+
 	// 获取指令类型
 	stepType := GetFirstWord(text)
 
 	// 解析指令
-	if stepType == CMD_ENV {
+	if stepType == STEP_ENV {
 		dfStep, err := parseENVStep(rowNo, text)
 		if err != nil {
 			return newDFError(err.Error(), df.Path, rowNo, text)
@@ -86,7 +93,7 @@ func analyzeStep(df *Dockerfile, rowNo int, text string) error {
 		if err != nil {
 			return newDFError(err.Error(), df.Path, rowNo, text)
 		}
-	} else if stepType == CMD_ARG {
+	} else if stepType == STEP_ARG {
 		dfStep, err := parseARGStep(rowNo, text)
 		if err != nil {
 			return newDFError(err.Error(), df.Path, rowNo, text)
@@ -96,7 +103,7 @@ func analyzeStep(df *Dockerfile, rowNo int, text string) error {
 		if err != nil {
 			return newDFError(err.Error(), df.Path, rowNo, text)
 		}
-	} else if stepType == CMD_ADD {
+	} else if stepType == STEP_ADD {
 		dfStep, err := parseADDStep(rowNo, text)
 		if err != nil {
 			return newDFError(err.Error(), df.Path, rowNo, text)
@@ -110,14 +117,15 @@ func analyzeStep(df *Dockerfile, rowNo int, text string) error {
 
 		// check path
 		inDfdirRscPath := filepath.Join(filepath.Dir(df.Path), localRscPath)
-		inResourceRscPath := filepath.Join(filepath.Dir(df.Path), localRscPath)
+		inResourceRscPath := filepath.Join(opts.BuildDir, localRscPath)
+
 		if IsExist(inDfdirRscPath) || IsExist(inResourceRscPath) {
 			df.LocalResourcePaths = append(df.LocalResourcePaths, localRscPath)
 		} else {
 			return newDFError(fmt.Sprintf("can not find:\n\t%s\nor\n\t%s\n", inDfdirRscPath, inResourceRscPath), df.Path, rowNo, text)
 		}
 
-	} else if stepType == CMD_COPY {
+	} else if stepType == STEP_COPY {
 		dfStep, err := parseCOPYStep(rowNo, text)
 		if err != nil {
 			return err
@@ -131,7 +139,8 @@ func analyzeStep(df *Dockerfile, rowNo int, text string) error {
 
 		// check path
 		inDfdirRscPath := filepath.Join(filepath.Dir(df.Path), localRscPath)
-		inResourceRscPath := filepath.Join(filepath.Dir(df.Path), localRscPath)
+		inResourceRscPath := filepath.Join(opts.BuildDir, localRscPath)
+
 		if IsExist(inDfdirRscPath) || IsExist(inResourceRscPath) {
 			df.LocalResourcePaths = append(df.LocalResourcePaths, localRscPath)
 		} else {
@@ -200,6 +209,14 @@ func tryAddArg(df *Dockerfile, dfStep *DFStep) error {
 	return nil
 }
 
+func parseCommentStep(rowNo int, text string)*DFStep {
+	return &DFStep{
+		StepType:   STEP_COMMENT,
+		StepStr:    text,
+		RowNos:     []int{rowNo},
+	}
+}
+
 func parseENVStep(rowNo int, text string) (*DFStep, error) {
 	key, value, err := ExtractKeyValueFromStep(text)
 
@@ -208,7 +225,7 @@ func parseENVStep(rowNo int, text string) (*DFStep, error) {
 	}
 
 	dfCmd := DFStep{
-		StepType:   CMD_ENV,
+		StepType:   STEP_ENV,
 		Components: []string{key, value},
 		StepStr:    text,
 		RowNos:     []int{rowNo},
@@ -223,7 +240,7 @@ func parseARGStep(rowNo int, text string) (*DFStep, error) {
 
 	if err == nil {
 		return &DFStep{
-			StepType:   CMD_ARG,
+			StepType:   STEP_ARG,
 			Components: []string{key, value},
 			StepStr:    text,
 			RowNos:     []int{rowNo},
@@ -237,7 +254,7 @@ func parseARGStep(rowNo int, text string) (*DFStep, error) {
 	}
 
 	return &DFStep{
-		StepType:   CMD_ARG,
+		StepType:   STEP_ARG,
 		Components: []string{key},
 		StepStr:    text,
 		RowNos:     []int{rowNo},
@@ -252,7 +269,7 @@ func parseADDStep(rowNo int, text string) (*DFStep, error) {
 	}
 
 	dfCmd := DFStep{
-		StepType:   CMD_ADD,
+		StepType:   STEP_ADD,
 		Components: []string{key, value},
 		StepStr:    text,
 		RowNos:     []int{rowNo},
@@ -270,7 +287,7 @@ func parseCOPYStep(rowNo int, text string) (*DFStep, error) {
 	}
 
 	dfCmd := DFStep{
-		StepType:   CMD_COPY,
+		StepType:   STEP_COPY,
 		Components: []string{key, value},
 		StepStr:    text,
 		RowNos:     []int{rowNo},

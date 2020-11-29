@@ -48,6 +48,11 @@ func TestGetFirstWord(t *testing.T) {
 	if word != "aaa" {
 		t.Errorf("error. actual = %s, except = aaa", word)
 	}
+
+	text = " # aaa  bbb dddd"
+	word = GetFirstWord(text)
+	fmt.Println(word)
+
 }
 
 func TestGetNthWord(t *testing.T) {
@@ -223,16 +228,14 @@ func TestExtractParam(t *testing.T) {
 	fmt.Println(len(result))
 }
 
-func add(args map[string]string) {
-	args["aaa"] = "1234"
-}
-
-func TestMy(t *testing.T) {
-	b := map[string]string{
-		"bbb": "222",
-		"ccc": "333",
+func TestIsComment(t *testing.T){
+	text := "  # aa bb cc"
+	if !IsComment(text) {
+		t.Error(text + ": should be error")
 	}
-	add(b)
-	fmt.Println(b)
-	//fmt.Println(PATH_SEPARATOR)
+
+	text = "   aa bb cc"
+	if IsComment(text) {
+		t.Error(text + ": not comment")
+	}
 }

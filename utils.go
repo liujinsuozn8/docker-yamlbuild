@@ -15,6 +15,7 @@ var KV_EQUALITY_STEP *regexp.Regexp
 var KV_SPACE_STEP *regexp.Regexp
 var KEY_IN_STEP *regexp.Regexp
 var PARAM *regexp.Regexp
+var COMMENT *regexp.Regexp
 var SKIP_PARMAS []string
 var BuildIgnoreList []string
 
@@ -34,7 +35,7 @@ func init() {
 	// ([^ =]+) 表示key
 	// (?:\s+|=)，key后面跟多个空格个或1个 =
 	// (\S.*) 表示必须以一个非空格的字符开头
-	KV_STEP = regexp.MustCompile(`^\s*[^ =]+\s+([^ =]+)(?:\s+|=)(\S.*)$`)
+	KV_STEP = regexp.MustCompile(`^\s*[^#][^ =]+\s+([^ =]+)(?:\s+|=)(\S.*)$`)
 
 	// 2. 只处理由等号分割的等式形 CMD
 	KV_EQUALITY_STEP = regexp.MustCompile(`^\s*[^ =]+\s+([^ =]+)=(\S.*)$`)
@@ -49,6 +50,8 @@ func init() {
 	PARAM = regexp.MustCompile(`\${?([^ ${}:/]+)}?`)
 
 	BuildIgnoreList = []string{"*", "!src/", "!Dockerfile"}
+
+	COMMENT = regexp.MustCompile(`^\s*#.*`)
 }
 
 func InfoLog(v ...interface{}) {
@@ -100,6 +103,10 @@ func GetNthWord(text string, index int) string {
 	} else {
 		return matches[index-1]
 	}
+}
+
+func IsComment(text string) bool {
+	return COMMENT.MatchString(text)
 }
 
 func ExtractKeyValueFromStep(text string) (string, string, error) {

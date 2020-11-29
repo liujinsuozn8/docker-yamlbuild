@@ -49,7 +49,7 @@ func (this *ImgBuildCmdBuilder) Build() error {
 		// 读取dockerfile
 		df, err := CreateDockerfile(
 			filepath.Join(this.ImgDir, optionsList[i].Id, "Dockerfile"),
-			optionsList[i].BuildArg)
+			&optionsList[i])
 		if err != nil {
 			return err
 		}

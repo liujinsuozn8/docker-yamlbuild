@@ -11,7 +11,7 @@ import (
 )
 
 type ImageBuildOptions struct {
-	BuildArg       map[string]string `yaml:"build-arg"`
+	BuildArgs       map[string]string `yaml:"build-arg"`
 	Id             string            `yaml:"id"`
 	Tags           []string          `yaml:"tag"`
 	DockerfilePath string            `yaml:"file"`
@@ -40,7 +40,7 @@ func (this *ImageBuildCmd) GetCmdArgs() []string {
 	}
 
 	// --build-arg
-	for k, v := range this.BuildOptions.BuildArg {
+	for k, v := range this.BuildOptions.BuildArgs {
 		cmdArgs = append(cmdArgs, "--build-arg", fmt.Sprintf("%s=%s", k, v))
 
 	}
@@ -110,22 +110,22 @@ func (this *ImageBuildCmd) BuildImage() error {
 		}
 	}
 
-	// 5. 创建 ./dockerignore
-	ignore, err := os.OpenFile(filepath.Join(this.BuildOptions.BuildDir, ".dockeringore"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	// 5. 创建 .dockerignore
+	ignore, err := os.OpenFile(filepath.Join(this.BuildOptions.BuildDir, ".dockerignore"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
 	defer ignore.Close()
+
 	// 写入忽略内容
-	for _, lrp := range this.Dockerfile.LocalResourcePaths {
-		_, err := fmt.Fprintln(ignore, "!"+lrp)
+	for _, ignoreTarget := range BuildIgnoreList {
+		_, err := fmt.Fprintln(ignore, ignoreTarget)
 		if err != nil {
 			return err
 		}
 	}
-
-	for _, ignoreTarget := range BuildIgnoreList {
-		_, err := fmt.Fprintln(ignore, ignoreTarget)
+	for _, lrp := range this.Dockerfile.LocalResourcePaths {
+		_, err := fmt.Fprintln(ignore, "!"+lrp)
 		if err != nil {
 			return err
 		}
@@ -150,15 +150,17 @@ func (this *ImageBuildCmd) BuildImage() error {
 	// 实时输出执行信息
 	go func() {
 		scanner := bufio.NewScanner(stdoutPipe)
+		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
-			fmt.Println(string(scanner.Bytes()))
+			fmt.Println(scanner.Text())
 		}
 	}()
 
 	go func() {
 		scanner := bufio.NewScanner(stderrPipe)
+		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
-			fmt.Println(string(scanner.Bytes()))
+			fmt.Println(scanner.Text())
 		}
 	}()
 
